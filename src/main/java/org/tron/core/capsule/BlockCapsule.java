@@ -18,12 +18,6 @@ package org.tron.core.capsule;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-import java.security.SignatureException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Vector;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.tron.common.crypto.ECKey;
@@ -35,12 +29,22 @@ import org.tron.core.capsule.utils.MerkleTree;
 import org.tron.core.config.Parameter.ChainConstant;
 import org.tron.core.exception.BadItemException;
 import org.tron.core.exception.ValidateSignatureException;
+import org.tron.protos.Protocol;
 import org.tron.protos.Protocol.Block;
 import org.tron.protos.Protocol.BlockHeader;
 import org.tron.protos.Protocol.Transaction;
 
+import java.io.IOException;
+import java.math.BigInteger;
+import java.security.SignatureException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Vector;
+import java.util.stream.Collectors;
+
 @Slf4j(topic = "capsule")
-public class BlockCapsule implements ProtoCapsule<Block> {
+public class BlockCapsule implements ProtoCapsule<Block>, Columnar {
 
   public static class BlockId extends Sha256Hash {
 
@@ -274,7 +278,48 @@ public class BlockCapsule implements ProtoCapsule<Block> {
     return this.block.toByteArray();
   }
 
-  @Override
+    @Override
+    public void saveTo(ColumnManager manager) throws IOException {
+        for (Transaction tx : block.getTransactionsList()) {
+            Transaction.raw raw = tx.getRawData();
+            manager.addRow("block.transactions.raw.timestamp", BigInteger.valueOf(raw.getTimestamp()).toByteArray());
+            manager.addRow("block.transactions.raw.fee_limit", BigInteger.valueOf(raw.getFeeLimit()).toByteArray());
+            manager.addRow("block.transactions.raw.ref_block_bytes", raw.getRefBlockBytes().toByteArray());
+            manager.addRow("block.transactions.raw.ref_block_hash", raw.getRefBlockHash().toByteArray());
+            manager.addRow("block.transactions.raw.ref_block_num", BigInteger.valueOf(raw.getRefBlockNum()).toByteArray());
+            manager.addRow("block.transactions.raw.data", raw.getData().toByteArray());
+            manager.addRow("block.transactions.raw.expiration", BigInteger.valueOf(raw.getExpiration()).toByteArray());
+            manager.addRow("block.transactions.raw.scripts", raw.getScripts().toByteArray());
+            for (Protocol.authority auth : raw.getAuthsList()) {
+                manager.addRow("block.transactions.raw.auth", auth.toByteArray());
+            }
+            for (Transaction.Contract contract : raw.getContractList()) {
+                manager.addRow("block.transactions.raw.contract", contract.toByteArray());
+            }
+
+            for (Transaction.Result ret : tx.getRetList()) {
+                manager.addRow("block.transactions.ret", ret.toByteArray());
+            }
+            for (ByteString sig : tx.getSignatureList()) {
+                manager.addRow("block.transactions.signatures", sig.toByteArray());
+            }
+        }
+
+        BlockHeader blockHeader = block.getBlockHeader();
+        if (blockHeader != null) {
+            BlockHeader.raw raw = blockHeader.getRawData();
+            manager.addRow("block.header.raw.number", BigInteger.valueOf(raw.getNumber()).toByteArray());
+            manager.addRow("block.header.raw.parent_hash", raw.getParentHash().toByteArray());
+            manager.addRow("block.header.raw.witness_address", raw.getWitnessAddress().toByteArray());
+            manager.addRow("block.header.raw.timestamp", BigInteger.valueOf(raw.getTimestamp()).toByteArray());
+            manager.addRow("block.header.raw.witness_id", BigInteger.valueOf(raw.getWitnessId()).toByteArray());
+            manager.addRow("block.header.raw.tx_trie_root", raw.getTxTrieRoot().toByteArray());
+            manager.addRow("block.header.raw.version", BigInteger.valueOf(raw.getVersion()).toByteArray());
+            manager.addRow("block.header.witness_signature", blockHeader.getWitnessSignature().toByteArray());
+        }
+    }
+
+    @Override
   public Block getInstance() {
     return this.block;
   }
