@@ -21,6 +21,7 @@ import org.tron.core.db2.common.IRevokingDB;
 import org.tron.core.db2.core.ITronChainBase;
 import org.tron.core.db2.core.RevokingDBWithCachingNewValue;
 import org.tron.core.db2.core.RevokingDBWithCachingOldValue;
+import org.tron.core.db2.core.RevokingRocksDBWithCachingNewValue;
 import org.tron.core.db2.core.RevokingRocksDBWithCachingOldValue;
 import org.tron.core.exception.BadItemException;
 import org.tron.core.exception.ItemNotFoundException;
@@ -49,6 +50,8 @@ public abstract class TronStoreWithRevoking<T extends ProtoCapsule> implements I
       this.revokingDB = new RevokingDBWithCachingNewValue(dbName);
     } else if (dbVersion == 3) {
       this.revokingDB = new RevokingRocksDBWithCachingOldValue(dbName);
+    } else if (dbVersion == 4) {
+      this.revokingDB = new RevokingRocksDBWithCachingNewValue(dbName);
     } else {
       throw new RuntimeException("db version is error.");
     }
@@ -59,6 +62,8 @@ public abstract class TronStoreWithRevoking<T extends ProtoCapsule> implements I
     int dbVersion = Args.getInstance().getStorage().getDbVersion();
     if (dbVersion == 2) {
       this.revokingDB = new RevokingDBWithCachingNewValue(dbName, clz);
+    } else if (dbVersion == 4) {
+      this.revokingDB = new RevokingRocksDBWithCachingNewValue(dbName, clz);
     } else {
       throw new RuntimeException("db version is only 2.(" + dbVersion + ")");
     }

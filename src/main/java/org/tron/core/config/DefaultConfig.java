@@ -11,12 +11,13 @@ import org.springframework.context.annotation.Import;
 import org.tron.core.config.args.Args;
 import org.tron.core.db.RevokingDatabase;
 import org.tron.core.db.RevokingStore;
-import org.tron.core.db.TransactionCache;
 import org.tron.core.db.RevokingStoreRocks;
+import org.tron.core.db.TransactionCache;
 import org.tron.core.db.api.IndexHelper;
 import org.tron.core.db.backup.BackupRocksDBAspect;
 import org.tron.core.db.backup.NeedBeanCondition;
 import org.tron.core.db2.core.SnapshotManager;
+import org.tron.core.db2.core.SnapshotManagerRocks;
 import org.tron.core.services.interfaceOnSolidity.RpcApiServiceOnSolidity;
 import org.tron.core.services.interfaceOnSolidity.http.solidity.HttpApiOnSolidityService;
 
@@ -55,6 +56,8 @@ public class DefaultConfig {
         revokingDatabase = new SnapshotManager();
       } else if (dbVersion == 3) {
         revokingDatabase = RevokingStoreRocks.getInstance();
+      } else if (dbVersion == 4) {
+        revokingDatabase = new SnapshotManagerRocks();
       } else {
         throw new RuntimeException("db version is error.");
       }

@@ -9,7 +9,7 @@ public interface BatchSourceInterRocks<K, V> extends SourceInterRocks<K, V> {
 
   void updateByBatch(Map<K, V> rows);
 
-  void updateByBatch(Map<K, V> rows, WriteOptions writeOptions);
+  void updateByBatch(Map<K, V> rows, WriteOptionsWrapper options);
 
   void putData(K key, V val);
 

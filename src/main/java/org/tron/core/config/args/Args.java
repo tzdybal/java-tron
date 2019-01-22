@@ -1137,7 +1137,7 @@ public class Args {
   private static void initRocksDbSettings(Config config) {
     String prefix = "storage.dbSettings.";
 
-    if (Args.getInstance().getStorage().getDbVersion() == 3) {
+    if (Args.getInstance().getStorage().getDbVersion() == 3 || Args.getInstance().getStorage().getDbVersion() == 4) {
       int levelNumber = config.hasPath(prefix + "levelNumber")
           ? config.getInt(prefix + "levelNumber") : 6;
       int compactThreads = config.hasPath(prefix + "compactThreads")

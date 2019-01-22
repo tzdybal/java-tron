@@ -22,9 +22,8 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.iq80.leveldb.WriteOptions;
 import org.tron.common.storage.WriteOptionsWrapper;
-import org.tron.common.storage.leveldb.LevelDbDataSourceImpl;
+import org.tron.common.storage.leveldb.RocksDbDataSourceImpl;
 import org.tron.core.config.args.Args;
 import org.tron.core.db.RevokingDatabase;
 import org.tron.core.db.common.WrappedByteArray;
@@ -34,14 +33,15 @@ import org.tron.core.db2.common.Key;
 import org.tron.core.db2.common.Value;
 import org.tron.core.exception.RevokingStoreIllegalStateException;
 
+
 @Slf4j(topic = "DB")
-public class SnapshotManager implements RevokingDatabase {
+public class SnapshotManagerRocks implements RevokingDatabase {
 
   private static final int DEFAULT_STACK_MAX_SIZE = 256;
   public static final int DEFAULT_MAX_FLUSH_COUNT = 500;
   public static final int DEFAULT_MIN_FLUSH_COUNT = 1;
   @Getter
-  private List<RevokingDBWithCachingNewValue> dbs = new ArrayList<>();
+  private List<RevokingRocksDBWithCachingNewValue> dbs = new ArrayList<>();
   @Getter
   private int size = 0;
   private AtomicInteger maxSize = new AtomicInteger(DEFAULT_STACK_MAX_SIZE);
@@ -60,7 +60,7 @@ public class SnapshotManager implements RevokingDatabase {
 
   @Setter
   @Getter
-  private LevelDbDataSourceImpl tmpLevelDbDataSource;
+  private RocksDbDataSourceImpl tmpLevelDbDataSource;
 
   @Setter
   private volatile int maxFlushCount = DEFAULT_MIN_FLUSH_COUNT;
@@ -98,7 +98,7 @@ public class SnapshotManager implements RevokingDatabase {
 
   @Override
   public void add(IRevokingDB db) {
-    RevokingDBWithCachingNewValue revokingDB = (RevokingDBWithCachingNewValue) db;
+    RevokingRocksDBWithCachingNewValue revokingDB = (RevokingRocksDBWithCachingNewValue) db;
     dbs.add(revokingDB);
     flushServices.put(revokingDB.getDbName(), MoreExecutors.listeningDecorator(
         Executors.newSingleThreadExecutor(
@@ -225,7 +225,7 @@ public class SnapshotManager implements RevokingDatabase {
 
   public void updateSolidity(int hops) {
     for (int i = 0; i < hops; i++) {
-      for (RevokingDBWithCachingNewValue db : dbs) {
+      for (RevokingRocksDBWithCachingNewValue db : dbs) {
         db.getHead().updateSolidity();
       }
     }
@@ -237,7 +237,7 @@ public class SnapshotManager implements RevokingDatabase {
 
   private void refresh() {
     List<ListenableFuture<?>> futures = new ArrayList<>(dbs.size());
-    for (RevokingDBWithCachingNewValue db : dbs) {
+    for (RevokingRocksDBWithCachingNewValue db : dbs) {
       futures.add(flushServices.get(db.getDbName()).submit(() -> refreshOne(db)));
     }
     Future<?> future = Futures.allAsList(futures);
@@ -250,7 +250,7 @@ public class SnapshotManager implements RevokingDatabase {
     }
   }
 
-  private void refreshOne(RevokingDBWithCachingNewValue db) {
+  private void refreshOne(RevokingRocksDBWithCachingNewValue db) {
     if (Snapshot.isRoot(db.getHead())) {
       return;
     }
@@ -297,7 +297,7 @@ public class SnapshotManager implements RevokingDatabase {
 
   private void createCheckPoint() {
     Map<WrappedByteArray, WrappedByteArray> batch = new HashMap<>();
-    for (RevokingDBWithCachingNewValue db : dbs) {
+    for (RevokingRocksDBWithCachingNewValue db : dbs) {
       Snapshot head = db.getHead();
       if (Snapshot.isRoot(head)) {
         return;
@@ -325,31 +325,31 @@ public class SnapshotManager implements RevokingDatabase {
   }
 
   private void deleteCheckPoint() {
-    Map <byte[], byte[]> hmap = new HashMap<byte[], byte[]>();
-   if (!tmpLevelDbDataSource.allKeys().isEmpty()) {
-     for (Map.Entry<byte[], byte[]> e : tmpLevelDbDataSource) {
-       hmap.put(e.getKey(), null);
-     }
-   }
+    Map<byte[], byte[]> hmap = new HashMap<byte[], byte[]>();
+    if (!tmpLevelDbDataSource.allKeys().isEmpty()) {
+      for (Map.Entry<byte[], byte[]> e : tmpLevelDbDataSource) {
+        hmap.put(e.getKey(), null);
+      }
+    }
 
-   tmpLevelDbDataSource.updateByBatch(hmap,  WriteOptionsWrapper.getInstance()
-       .sync(Args.getInstance().getStorage().isDbSync()));
+    tmpLevelDbDataSource.updateByBatch(hmap, WriteOptionsWrapper.getInstance()
+        .sync(Args.getInstance().getStorage().isDbSync()));
   }
 
   // ensure run this method first after process start.
   @Override
   public void check() {
-    for (RevokingDBWithCachingNewValue db : dbs) {
+    for (RevokingRocksDBWithCachingNewValue db : dbs) {
       if (!Snapshot.isRoot(db.getHead())) {
         throw new IllegalStateException("first check.");
       }
     }
 
     tmpLevelDbDataSource =
-        new LevelDbDataSourceImpl(Args.getInstance().getOutputDirectoryByDbName("tmp"), "tmp");
+        new RocksDbDataSourceImpl(Args.getInstance().getOutputDirectoryByDbName("tmp"), "tmp");
     tmpLevelDbDataSource.initDB();
     if (!tmpLevelDbDataSource.allKeys().isEmpty()) {
-      Map<String, RevokingDBWithCachingNewValue> dbMap = dbs.stream()
+      Map<String, RevokingRocksDBWithCachingNewValue> dbMap = dbs.stream()
           .map(db -> Maps.immutableEntry(db.getDbName(), db))
           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
       advance();
@@ -398,15 +398,15 @@ public class SnapshotManager implements RevokingDatabase {
   @Getter // only for unit test
   public static class Session implements ISession {
 
-    private SnapshotManager snapshotManager;
+    private SnapshotManagerRocks snapshotManager;
     private boolean applySnapshot = true;
     private boolean disableOnExit = false;
 
-    public Session(SnapshotManager snapshotManager) {
+    public Session(SnapshotManagerRocks snapshotManager) {
       this(snapshotManager, false);
     }
 
-    public Session(SnapshotManager snapshotManager, boolean disableOnExit) {
+    public Session(SnapshotManagerRocks snapshotManager, boolean disableOnExit) {
       this.snapshotManager = snapshotManager;
       this.disableOnExit = disableOnExit;
     }
